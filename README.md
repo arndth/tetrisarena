@@ -248,72 +248,86 @@ creates no holes, stack height becomes 3, surface roughness 4, total holes 0
 
 Jev does not take a free-text prompt. It takes a `state` object and typed
 `questions`. Each candidate becomes an option of a `choice` enum, so an illegal
-move is impossible by construction. The request for the best variant
-(`jev-2ply`) looks like this (values illustrative, two of ten options shown):
+move is impossible by construction. This is the **real request** of the best
+variant (`jev-2ply`) for one position, generated from `js/picker-jev.js` (3 of
+10 options shown):
 
 ```json
 {
   "model": "jev-latest",
   "state": {
-    "board": "..........\n...##.....\n#.####.###",
-    "board_note": "17 empty rows above this are omitted; \"#\" filled, \".\" empty, 10 columns",
-    "active_piece": "T",
-    "next_piece": "I",
-    "current_max_height": 2, "current_roughness": 5, "current_holes": 0,
-    "rows_of_headroom": 18,
-    "all_options_open_new_holes": "none",
-    "candidate_count": 10
+    "board": "..........\n..........\n........#.\n.#......##\n###....###\n######.##.",
+    "board_note": "14 empty rows above this are omitted; \"#\" filled, \".\" empty, 10 columns",
+    "active_piece": "L",
+    "current_max_height": 4,
+    "current_roughness": 9,
+    "current_holes": 1,
+    "rows_of_headroom": 16,
+    "all_options_clear": "no lines",
+    "candidate_count": 10,
+    "next_piece": "Z"
   },
   "questions": {
     "placement": {
       "type": "choice",
       "instructions": "Choose where to drop the `active_piece`, thinking one piece ahead: each option also states what the best follow-up with the `next_piece` would achieve. Values are changes to the current board (see `current_*`). Decide in this order: (1) never open a new hole, and never leave the next piece unplaceable; (2) clear lines, counting the follow-up; (3) keep the stack low; (4) keep the surface flat. Only use a later rule to break a tie on the earlier ones.",
       "criteria": {
-        "option_0": "rotation 2, column 1; clears 1; height +0 (to 2); roughness -2 (to 3); then the best I follow-up clears 1 and leaves height 1, holes 0",
-        "option_1": "rotation 0, column 6; height +1 (to 3); roughness +1 (to 6); then the best I follow-up clears 0 and leaves height 3, holes 0"
+        "option_0": "rotation 0, column 3; new holes 0; height 0 (to 4); roughness +2 (to 11); then the best Z follow-up clears 0 and leaves height 5, holes 1",
+        "option_1": "rotation 1, column 3; new holes 0; height 0 (to 4); roughness +4 (to 13); then the best Z follow-up clears 1 and leaves height 3, holes 1",
+        "option_2": "rotation 2, column 0; new holes +1; height 0 (to 4); roughness 0 (to 9); then the best Z follow-up clears 0 and leaves height 4, holes 3",
+        "…": "7 more options"
       }
     }
   }
 }
 ```
 
-The answer has the form `{"placement": {"choice": "option_0", "confidence": 0.81}}`.
+The answer has the form `{"placement": {"choice": "option_1", "confidence": 0.81}}`.
 
 ### SAP-RPT-1: a table, not a prompt
 
-RPT-1 **receives no text instructions at all**. It is a tabular in-context
-learner: it reads a table, sees example rows with known values, and predicts the
-cells marked `[PREDICT]`. The Tetris move choice is therefore reshaped as a
-**regression over a table** (`js/picker-rpt1.js`; values illustrative):
+RPT-1 gets **no text instructions at all**: no rules, no goal, not even the
+word "Tetris". All it gets per move is **one table**. It sees rows whose
+`placement_score` is known, and fills in the rows marked `[PREDICT]`. The arena
+then plays the candidate with the highest predicted score.
 
-| row_id | piece | rotation | column | lines_cleared | landing_height | holes | holes_added | aggregate_height | max_height | bumpiness | row_transitions | col_transitions | well_sums | **placement_score** |
+This is the **real table** sent for the same position as the Jev example above.
+It was generated from `js/picker-rpt1.js`. The piece is an L, 34 placements are
+legal, and the board is:
+
+```
+..........
+..........
+........#.
+.#......##
+###....###
+######.##.
+```
+
+| row_id | piece | rotation | column | lines_cleared | landing_height | holes | holes_added | aggregate_height | max_height | bumpiness | row_transitions | col_transitions | well_sums | placement_score |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| ctx_0 | T | 0 | 3 | 0 | 1 | 0 | 0 | 4 | 2 | 3 | 22 | 14 | 1 | **-187.42** |
-| ctx_1 | T | 2 | 7 | 0 | 2 | 1 | 1 | 6 | 3 | 7 | 26 | 19 | 4 | **-261.90** |
-| … up to 240 context rows … | | | | | | | | | | | | | | |
-| q_0 | S | 1 | 4 | 1 | 1 | 0 | 0 | 5 | 2 | 4 | 20 | 13 | 0 | **[PREDICT]** |
-| q_1 | S | 0 | 0 | 0 | 2 | 1 | 1 | 7 | 3 | 6 | 24 | 17 | 2 | **[PREDICT]** |
+| ctx_0 | S | 0 | 0 | 0 | 1.5 | 1 | 1 | 5 | 2 | 3 | 42 | 12 | 1 | -265.37 |
+| ctx_1 | S | 1 | 0 | 0 | 2 | 1 | 1 | 5 | 3 | 3 | 42 | 12 | 1 | -267.62 |
+| ctx_2 | S | 0 | 3 | 0 | 1.5 | 1 | 1 | 5 | 2 | 4 | 44 | 12 | 0 | -268.42 |
+| ctx_3 | S | 0 | 1 | 0 | 1.5 | 1 | 1 | 5 | 2 | 4 | 44 | 12 | 1 | -271.81 |
+| … 44 more context rows … | | | | | | | | | | | | | | |
+| q_0 | L | 0 | 3 | 0 | 2.5 | 1 | 0 | 23 | 4 | 11 | 48 | 12 | 5 | [PREDICT] |
+| q_1 | L | 1 | 3 | 0 | 3 | 1 | 0 | 23 | 4 | 13 | 50 | 12 | 4 | [PREDICT] |
+| q_2 | L | 2 | 0 | 0 | 3.5 | 2 | 1 | 24 | 4 | 9 | 44 | 14 | 2 | [PREDICT] |
+| q_3 | L | 3 | 5 | 0 | 2 | 2 | 1 | 24 | 4 | 9 | 46 | 14 | 3 | [PREDICT] |
+| … 6 more candidate rows … | | | | | | | | | | | | | | |
 
-- **Query rows.** There is one row per candidate placement (8–10 per move),
-  with 13 numeric feature columns. The target column `placement_score` is set to
-  `[PREDICT]`.
-- **Context rows: the "training data" of the request.** These are placements
-  whose score is already known. Before the game, the table is primed with a short
-  heuristic self-play (8 pieces × 6 placements = 48 rows), deliberately spread
-  from best to worst so the target column has real variance. After every move,
-  the chosen placement is added. The table is capped at 240 rows per player.
-- **The label is the heuristic's own score.** Each context row's
-  `placement_score` is the El-Tetris value of that placement. RPT-1 therefore
-  learns to generalise a known scoring function from examples. It does not
-  discover a better one. Swap `labelFor()` for an outcome-based label (e.g.
-  lines cleared over the next 10 pieces) if you want it to learn something new.
-- **What comes back.** RPT-1 returns a predicted score per query row. The arena
-  plays the highest. The cloud route also returns a **confidence interval** and
-  **feature importances**, shown in the decision log as e.g.
-  `predicted -253.9 · ci [-260, -240] · leaned on row_transitions 0.207`.
+**What is in the request**
 
-Request body, as sent to SAP AI Core (the proxy translates it for the
-`rpt.cloud.sap` dialect):
+| | This arena (`js/picker-rpt1.js`) |
+| --- | --- |
+| **Columns** | 15: `row_id` (index) + 13 numeric/categorical features + the target `placement_score` |
+| **Features** | `piece`, `rotation`, `column`, `lines_cleared`, `landing_height`, `holes`, `holes_added`, `aggregate_height`, `max_height`, `bumpiness`, `row_transitions`, `col_transitions`, `well_sums`. All describe the board **after** the move. |
+| **Candidate rows (`[PREDICT]`)** | the **top 10** of the 34 legal placements, **pre-filtered by the heuristic** (UI setting "Candidates sent to models") |
+| **Context rows (labelled examples)** | 48 at game start, from a short heuristic self-play (8 pieces × 6 placements, spread from best to worst). After each move, the chosen placement is added; capped at 240. |
+| **Label** | the El-Tetris heuristic score of each placement, rounded to 2 decimals (`labelFor()`) |
+| **Size of one request** | 58 rows × 15 columns = **870 cells**, of which 10 are predicted (at game start; grows to about 3,800 cells with 240 context rows) |
+| **Task** | `regression` on `placement_score` |
 
 ```json
 {
@@ -321,12 +335,58 @@ Request body, as sent to SAP AI Core (the proxy translates it for the
     "target_columns": [{ "name": "placement_score", "task_type": "regression", "prediction_placeholder": "[PREDICT]" }]
   },
   "index_column": "row_id",
-  "rows": [ "...context rows first, then the [PREDICT] rows..." ]
+  "rows": [ "48 context rows first, then the 10 [PREDICT] rows" ]
 }
 ```
 
-There is **no fine-tuning and no training job**. All "learning" happens inside
-the single request, from the context rows.
+(This is the SAP AI Core format. For the free `rpt.cloud.sap` playground, the
+proxy sends only `{rows, index_column}`, and the target is implied by the
+`[PREDICT]` cells.)
+
+**Three honest weaknesses of this setup**
+
+1. **The heuristic is the teacher *and* the gatekeeper.** It labels every
+   example and pre-selects the 10 candidates. RPT-1 can only re-order moves the
+   heuristic already likes. That explains the 95% agreement with the heuristic,
+   and why RPT-1 cannot beat it here.
+2. **The context does not match the game.** The 48 starting examples come from
+   an almost empty board (aggregate height ≈ 5). The positions RPT-1 is asked
+   about later are much taller (≈ 23 in the example). New context rows are only
+   the moves actually played, i.e. good moves. That narrows the range of labels
+   RPT-1 can learn from.
+3. **The next piece is not a column.** Only Jev's 2-ply variant gets to think
+   one piece ahead.
+
+### Compared with "I taught SAP RPT-1.6 to play Tetris"
+
+The [SAP Community post](https://community.sap.com/t5/technology-blog-posts-by-sap/i-taught-sap-rpt-1-6-to-play-tetris/ba-p/14507821)
+(21 Oct 2026) that inspired this project uses the same idea: one row per
+placement, heuristic labels, highest prediction wins. It builds the context
+much more carefully, though:
+
+| | This arena | SAP Community post |
+| --- | --- | --- |
+| Model / route | `sap-rpt-1.6` via free playground (or AI Core) | `sap-rpt-1.6` on SAP AI Core |
+| Candidates per move | top 10 by heuristic | **all** legal placements (9–34) |
+| Columns | 15 | 18 (or 28 with the ten column heights `h0`–`h9`) |
+| Extra features | — | `next_piece`, `eroded_cells`, `level`, `wells` |
+| Example pool | 48 rows from 8 self-play pieces, plus the moves played | **5,000 rows** from 30 heuristic games, of which two thirds include **15% or 40% random moves** so bad positions are covered too |
+| Context per request | all stored rows (48 → 240) | **64 rows sampled per move**, ~70% from positions with a similar stack height (±3 rows) |
+| Request size | ~870–3,800 cells | ~1,800 cells (98 rows × 18 columns for a T piece) |
+| Label | El-Tetris score | El-Tetris score (the formula itself is never sent) |
+| Result | tie with Jev and the heuristic over 50 pieces | 38 / 35 lines vs. 38 / 39 for the heuristic over 2 × 100 pieces; picks the teacher's move 91% / 81% of the time; rank correlation 0.99 |
+| Latency | ~3.4 s (playground rate limit) | 1.44 s median on AI Core, plus pipelining and speculative requests |
+| Reported cost | ≈ €0.85 per 1,000 pieces (theoretical) | ≈ €0.09 per 100-piece game |
+
+The post also tested Jev and two open-weight decision models zero-shot with a
+short written instruction. Measured as lines cleared relative to the heuristic,
+it reports **RPT-1.6 95%, GEV-26B 93%, Jev 88%**. In this arena, Jev with the
+improved `jev-2ply` briefing reaches **100%** of the heuristic (see below). The
+gap between Jev and RPT-1 depends heavily on what each model is given.
+
+Both setups share the same ceiling: **RPT-1 imitates its teacher**. To let it
+beat the heuristic, replace `labelFor()` with an outcome-based label, e.g. lines
+cleared and holes created over the next 10 pieces.
 
 ---
 
