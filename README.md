@@ -27,7 +27,6 @@ else here.
 - [How Jev was improved: the same model with three briefings](#how-jev-was-improved-the-same-model-with-three-briefings)
 - [What the models were trained on](#what-the-models-were-trained-on)
 - [Connecting the backends](#connecting-the-backends)
-- [Recording a video](#recording-a-video)
 - [Project layout](#project-layout)
 - [Caveats](#caveats)
 - [License](#license)
@@ -496,22 +495,6 @@ RPT-1 is **not** on OpenRouter. There are three routes:
 
 ---
 
-## Recording a video
-
-`tools/record-video.mjs` records the square race video shown above. It
-configures four players, freezes each one after `PIECES` pieces (so slow
-backends are compared on the same pieces, not the same wall-clock time), adds a
-title and a results card, and encodes an MP4.
-
-```sh
-npm i -D playwright                 # once; uses your installed Google Chrome
-brew install ffmpeg                 # or any ffmpeg with libx264
-node server.mjs &                   # the arena must be running
-PIECES=50 node tools/record-video.mjs   # → media/tetris-arena.mp4 (+ .results.json)
-```
-
----
-
 ## Project layout
 
 ```
@@ -530,7 +513,6 @@ server.mjs              static server + key-holding proxy: /api/{models,llm,jev,
 bench.mjs               headless heuristic benchmark (no network)
 shootout.mjs            headless head-to-head: lines, holes, latency, real cost
 sap-cost.mjs            CLI: RPT-1 cost per piece / per game for every variant
-tools/record-video.mjs  square race video for social posts
 media/                  race video + poster
 ```
 
