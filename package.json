@@ -1,0 +1,16 @@
+{
+  "name": "tetrisarena",
+  "version": "1.0.0",
+  "description": "Tetris tournament: SAP-RPT-1 vs. Jev vs. any OpenRouter LLM vs. a heuristic, on identical pieces with live cost tracking.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "bench": "node bench.mjs 3 1500",
+    "shootout": "node shootout.mjs",
+    "sap-cost": "node sap-cost.mjs",
+    "video": "node tools/record-video.mjs"
+  },
+  "engines": { "node": ">=18" },
+  "keywords": ["tetris", "sap-rpt-1", "jev", "llm", "benchmark", "openrouter", "tabular-ai"]
+}

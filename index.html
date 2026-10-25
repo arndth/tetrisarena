@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tetris — model tournament</title>
+<style>
+  :root {
+    --bg: #0b0d14; --panel: #141825; --panel-2: #1b2031; --board-bg: #0e1119;
+    --grid-line: rgba(255,255,255,0.045); --text: #e9ecf5; --muted: #8d96ad;
+    --accent: #8ab4ff; --good: #5ad68a; --warn: #ffb259; --border: rgba(255,255,255,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 24px 32px;
+    background: radial-gradient(1200px 600px at 20% -10%, #18203a 0%, var(--bg) 60%);
+    color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  h1 { font-size: 18px; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+  .health { color: var(--muted); font-size: 12px; font-family: ui-monospace, Menlo, monospace; margin-bottom: 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; margin-bottom: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  select, input[type=number], input[type=text] {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 9px; font: inherit;
+  }
+  input[type=number] { width: 104px; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 16px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary { background: #27355c; border-color: #3b5490; }
+  .banner {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 16px; font-size: 13px;
+  }
+  .banner.done { border-color: var(--good); color: var(--good); }
+  .shell { display: grid; grid-template-columns: 215px minmax(0, 1fr) 245px; gap: 16px; align-items: start; }
+  @media (max-width: 1180px) { .shell { grid-template-columns: 1fr; } .rail { position: static !important; } }
+  .rail { position: sticky; top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .rail h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .big { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .big.zero { color: var(--muted); }
+  .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; }
+  .kv span:first-child { color: var(--muted); }
+  .kv span:last-child { font-variant-numeric: tabular-nums; }
+  .sep { height: 1px; background: var(--border); margin: 9px 0; }
+  .costrow { padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .costrow:last-child { border-bottom: 0; }
+  .costrow .who { font-size: 12px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+  .costrow .who em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--accent); }
+  .costrow .mini { font-size: 10px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; overflow-wrap: anywhere; }
+  .bar { height: 3px; border-radius: 2px; background: var(--panel-2); margin-top: 5px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); }
+  .freecap { font-size: 10px; color: var(--muted); line-height: 1.45; }
+  .arena { display: grid; gap: 14px; margin-bottom: 18px; }
+  .arena.cols-1 { grid-template-columns: max-content; }
+  .arena.cols-2 { grid-template-columns: repeat(2, max-content); }
+  .arena.cols-3 { grid-template-columns: repeat(3, max-content); }
+  .arena.cols-4 { grid-template-columns: repeat(auto-fit, minmax(210px, max-content)); }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .card-head { display: flex; gap: 8px; align-items: center; }
+  .card-head .name {
+    flex: 1; background: transparent; border: 1px solid transparent; color: var(--text);
+    font-weight: 600; font-size: 14px; border-radius: 6px; padding: 3px 5px; min-width: 0;
+  }
+  .card-head .name:hover, .card-head .name:focus { border-color: var(--border); background: var(--panel-2); }
+  .icon { padding: 3px 8px; font-size: 12px; color: var(--muted); }
+  .card canvas { border-radius: 8px; display: block; }
+  .card select, .card .model { width: 100%; font-size: 12px; padding: 5px 7px; }
+  .model-wrap { display: none; }
+  .pstats { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--muted); }
+  .pstats b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .pstatus { font-size: 11px; color: var(--text); }
+  .mini.theo { color: var(--accent); }
+  .pnote {
+    font-size: 10px; color: var(--muted); font-family: ui-monospace, Menlo, monospace;
+    min-height: 26px; line-height: 1.35; overflow-wrap: anywhere;
+  }
+  .dim { color: var(--muted); }
+  .good { color: var(--good); }
+  .warnx { color: var(--warn); }
+  #log {
+    height: 190px; overflow-y: auto; font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--board-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  }
+  .log-line { padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .log-line.warn { color: var(--warn); }
+  .log-line.good { color: var(--good); }
+  .log-line.dim { color: var(--muted); }
+  .log-time { color: var(--muted); margin-right: 8px; }
+  .keys { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .keys b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+  <h1>Tetris — model tournament</h1>
+  <p class="sub">Every player gets the same seed, so they all receive the <b>identical piece sequence</b>. Pick a backend per player: keyboard, local heuristic, Jev, SAP-RPT-1, or any OpenRouter chat model.</p>
+  <div class="health" id="health">checking proxy…</div>
+
+  <div class="panel controls">
+    <div class="field">
+      <span class="label">Seed (same stones for all)</span>
+      <input type="number" id="seed" min="1" step="1">
+    </div>
+    <button id="newSeed">New seed</button>
+    <div class="field">
+      <span class="label">Move animation</span>
+      <select id="speed">
+        <option value="slow">slow</option>
+        <option value="normal" selected>normal</option>
+        <option value="fast">fast</option>
+        <option value="instant">instant</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="label">Candidates sent to models</span>
+      <select id="candidates">
+        <option value="6">top 6 by heuristic</option>
+        <option value="10" selected>top 10 by heuristic</option>
+        <option value="0">all legal placements</option>
+      </select>
+    </div>
+    <div class="field">
+      <span class="label">€ per capacity unit</span>
+      <input type="number" id="eurPerCu" min="0.01" step="0.01" value="1">
+    </div>
+    <button id="addPlayer">+ Add player</button>
+    <button id="run" class="primary">Run</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div class="shell">
+    <aside class="rail">
+      <div class="panel">
+        <h2>Live cost per player</h2>
+        <div id="costPlayers"></div>
+      </div>
+      <div class="panel">
+        <h2>Cheapest so far</h2>
+        <div id="costEfficiency"></div>
+      </div>
+    </aside>
+
+    <div>
+      <div class="banner" id="banner"></div>
+      <div class="arena cols-1" id="arena"></div>
+    </div>
+
+    <aside class="rail">
+      <div class="panel">
+        <h2>Session spend</h2>
+        <div id="costTotals"></div>
+      </div>
+      <div class="panel">
+        <h2>Rates &amp; projection</h2>
+        <div id="costRates"></div>
+      </div>
+      <div class="panel">
+        <h2>SAP BTP, theoretical</h2>
+        <div id="costSap"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <div class="label" style="margin-bottom:8px;">Decision log</div>
+    <div id="log"></div>
+    <div class="keys"><b>←→</b> move · <b>↑</b>/<b>x</b>/<b>z</b> rotate · <b>↓</b> soft drop · <b>space</b> hard drop · <b>c</b> hold · <b>p</b> run/pause · <b>r</b> reset <span class="dim">(keyboard drives the first "You" player)</span></div>
+  </div>
+
+  <datalist id="modelList"></datalist>
+
+  <script src="js/tetris.js"></script>
+  <script src="js/features.js"></script>
+  <script src="js/pickers.js"></script>
+  <script src="js/picker-jev.js"></script>
+  <script src="js/sap-pricing.js"></script>
+  <script src="js/picker-rpt1.js"></script>
+  <script src="js/picker-llm.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/arena.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
