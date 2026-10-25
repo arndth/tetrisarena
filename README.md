@@ -40,7 +40,7 @@ Requirements: Node.js 18+ and a modern browser. There is no build step and there
 are no runtime dependencies.
 
 ```sh
-git clone https://github.com/<you>/tetrisarena.git
+git clone https://github.com/arndth/tetrisarena.git
 cd tetrisarena
 cp .env.example .env     # add the keys for the backends you want (see below)
 node server.mjs          # → http://localhost:8787
