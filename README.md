@@ -125,6 +125,10 @@ Run alone, it survives more than 1,500 pieces (`node bench.mjs 3 1500`: about
 Seed 12345, 50 identical pieces per player, 10 candidates per decision, 0
 fallbacks for every player. Recorded on 2026-10-26.
 
+> **Pre-selected run.** The models chose only among the heuristic's top 10,
+> listed best-first. See [the fair rerun](#the-fair-rerun-no-pre-selection-no-hints-in-the-order)
+> for results without that help.
+
 | Player | Lines after 50 pieces | Time per move | Cost for 50 pieces | Per 1,000 pieces |
 | --- | --- | --- | --- | --- |
 | **Jev** (`jev-2ply`) | **19** | 222 ms | $0.0024 | **$0.05** |
@@ -143,7 +147,13 @@ and cost instead. The heuristic matches the best model instantly and for free.
 
 ### The full field (20 pieces)
 
-Seed 31337, 8 candidates, 0% fallbacks. Ranked by lines, then holes. Jev ran
+Seed 31337, 8 candidates, 0% fallbacks. Ranked by lines, then holes.
+
+> **Pre-selected run.** The models chose only among the heuristic's top 8,
+> listed best-first. That flatters the chat LLMs in particular. See
+> [the fair rerun](#the-fair-rerun-no-pre-selection-no-hints-in-the-order).
+
+Jev ran
 here with its **original** prompt, before the
 [prompt improvements](#how-jev-was-improved-the-same-model-with-three-briefings).
 
@@ -440,6 +450,46 @@ per move (~19 s) says nothing about the model.
 - **It is not worth the price here.** On BTP, 2,000 context rows cost about 18×
   as much per piece as the old setup. The formula itself is free and runs in
   under 1 ms.
+
+### The fair rerun: no pre-selection, no hints in the order
+
+Until this run, Jev and the chat LLMs had two kinds of help from the
+heuristic:
+- **Pre-selection.** They chose only among the heuristic's top 8 or 10 moves.
+- **Sorted options.** The options were listed best-first by heuristic score,
+  so `option_0` was always the heuristic's own pick.
+
+`F.boardOrder()` now lists candidates by rotation, then column, and
+`CANDIDATES=0` sends every legal placement:
+
+`PIECES=50 SEEDS=1,2,3 CANDIDATES=0 node shootout.mjs heuristic jev-2ply google/gemini-2.5-flash-lite rpt1-v2 rpt1-v2-2k`
+(2026-10-26, means per seed)
+
+| Player | Lines | Holes | Stack | Agreed with heuristic | Fallbacks | Time per move | Per 1,000 pieces |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `rpt1-v2-2k` | **18.7** | **0.0** | **2.7** | **97%** | 0% | playground-limited¹ | ≈ €14.0 (theoretical BTP) |
+| `jev-2ply` | **18.7** | 0.3 | 3.0 | 71% | 0% | **309 ms** | **$0.08** (billed) |
+| heuristic | 18.3 | **0.0** | **2.7** | 100% | 0% | < 1 ms | free |
+| `rpt1-v2` | 18.0 | **0.0** | 4.3 | 90% | 0% | playground-limited¹ | ≈ €1.46 (theoretical BTP) |
+| `google/gemini-2.5-flash-lite` | 15.3 | 3.7 | 7.7 | 58% | 9%² | 678 ms | $0.15 (billed) |
+
+¹ Two RPT players shared the free playground's one-call-per-3.5-s limit, so
+wall-clock time per move (~7.4 s) is not model latency.
+² HTTP 429 from the provider. A fallback plays the heuristic's move, so
+Gemini's true result is slightly worse than shown.
+
+**What changes without help**
+
+- **Jev holds up.** With all moves in neutral order it still plays at
+  heuristic level, for 8 cents per 1,000 pieces. Its earlier results were not
+  an artefact of the pre-selection.
+- **The chat LLM falls apart.** Gemini leaves holes, builds a stack almost
+  three times as tall and drops 3 lines in 50 pieces. In the earlier tables it
+  looked as good as everyone else because the heuristic had already removed
+  the bad moves for it.
+- **RPT-1 needs enough examples.** With 2,000 context rows it matches the
+  heuristic on 97% of moves. That is the closest any model gets, but it is the
+  most expensive option by far.
 
 **Why there are no outcome labels.** Before spending API calls, the labels were
 tested offline with a ridge regression on the same 64 context rows standing in

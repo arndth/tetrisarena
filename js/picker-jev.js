@@ -32,11 +32,12 @@
   const F = global.Features;
   const P = global.Pickers;
 
-  /* Candidates are pre-sorted by the baseline so a capped enum keeps the
-     plausible moves; identical for every variant so the comparison is fair. */
+  /* A capped enum keeps the baseline's top moves; identical for every variant
+     so the comparison is fair. They are then listed in board order, so the
+     option number does not give away the baseline's favourite. */
   function shortlist(placements, limit) {
     const sorted = placements.slice().sort((a, b) => F.scorePlacement(b) - F.scorePlacement(a));
-    return limit > 0 ? sorted.slice(0, limit) : sorted;
+    return F.boardOrder(limit > 0 ? sorted.slice(0, limit) : sorted);
   }
 
   function signed(n) { return (n > 0 ? '+' : '') + n; }

@@ -171,6 +171,13 @@
     return lines * cells;
   }
 
+  /* Present candidates in board order (rotation, then column) so a model
+     cannot read the heuristic's preference off the list position: sorted by
+     score, option_0 would always be the heuristic's own pick. */
+  function boardOrder(placements) {
+    return placements.slice().sort((a, b) => (a.rot - b.rot) || (a.features.column - b.features.column));
+  }
+
   /* El-Tetris weights (Islam El-Ashi, 2011) -- the shared baseline. */
   const WEIGHTS = {
     landingHeight: -4.500158825082766,
@@ -201,6 +208,7 @@
     boardFeatures: boardFeatures,
     enumeratePlacements: enumeratePlacements,
     erodedCells: erodedCells,
+    boardOrder: boardOrder,
     scorePlacement: scorePlacement,
     asciiBoard: asciiBoard,
     WEIGHTS: WEIGHTS

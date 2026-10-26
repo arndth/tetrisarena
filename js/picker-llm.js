@@ -76,6 +76,7 @@
       if (limit > 0 && cands.length > limit) {
         cands = cands.slice().sort((a, b) => F.scorePlacement(b) - F.scorePlacement(a)).slice(0, limit);
       }
+      cands = F.boardOrder(cands);
       const valid = {};
       const lines = cands.map((p, i) => { valid['option_' + i] = p; return describe(p, i); });
 

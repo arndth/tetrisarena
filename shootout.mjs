@@ -15,9 +15,11 @@ import path from 'node:path';
 const ROOT = path.dirname(new URL(import.meta.url).pathname) + '/';
 const PIECES = Number(process.env.PIECES || 25);
 const SEEDS = (process.env.SEEDS || '31337').split(',').map(Number);
+/* CANDIDATES=0 sends every legal placement: no heuristic pre-selection. */
+const CANDIDATES = Number(process.env.CANDIDATES ?? 8);
 
 const win = { devicePixelRatio:1, location:{protocol:'http:'}, ModelPrices:{},
-  AIConfig:{ candidateLimit:8, jevModel:'jev-latest', proxyBase:'http://localhost:8787' },
+  AIConfig:{ candidateLimit:CANDIDATES, jevModel:'jev-latest', proxyBase:'http://localhost:8787' },
   performance:{ now:()=>Date.now() }, fetch:(...a)=>fetch(...a) };
 for (const f of ['js/tetris.js','js/features.js','js/pickers.js','js/picker-jev.js','js/sap-pricing.js','js/picker-rpt1.js','js/picker-rpt1-v2.js','js/rpt1-experience.js','js/picker-llm.js','js/arena.js'])
   new Function('window','fetch','location','performance', fs.readFileSync(ROOT+f,'utf8'))(
@@ -51,7 +53,7 @@ async function runOne(pickerId, model, seed) {
     let r;
     try {
       r = await picker.pick({ grid:g.grid, type:g.active.type, queue:g.queue.slice(),
-        placements, baseline, playerId:player.id, config:{ model, candidateLimit:8 } });
+        placements, baseline, playerId:player.id, config:{ model, candidateLimit:CANDIDATES } });
     } catch (e) {
       player.stats.fallbacks++;
       if (!player.firstError) player.firstError = e.message;
@@ -94,7 +96,7 @@ for (const r of all) {
 }
 const rows = [...byName.values()];
 const n = SEEDS.length;
-console.log(`\n${PIECES} pieces × ${n} seed(s) [${SEEDS.join(',')}], 8 candidates sent per decision\n`);
+console.log(`\n${PIECES} pieces × ${n} seed(s) [${SEEDS.join(',')}], ${CANDIDATES > 0 ? CANDIDATES + ' candidates' : 'all candidates'} sent per decision\n`);
 console.log('model                            lines  holes  maxH  agree%  fallback%   avg ms      cost   $/line');
 console.log('-'.repeat(103));
 rows.sort((a,b)=> (b.lines-a.lines) || (a.holes-b.holes));
