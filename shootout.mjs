@@ -19,14 +19,15 @@ const SEEDS = (process.env.SEEDS || '31337').split(',').map(Number);
 const win = { devicePixelRatio:1, location:{protocol:'http:'}, ModelPrices:{},
   AIConfig:{ candidateLimit:8, jevModel:'jev-latest', proxyBase:'http://localhost:8787' },
   performance:{ now:()=>Date.now() }, fetch:(...a)=>fetch(...a) };
-for (const f of ['js/tetris.js','js/features.js','js/pickers.js','js/picker-jev.js','js/sap-pricing.js','js/picker-rpt1.js','js/picker-llm.js','js/arena.js'])
+for (const f of ['js/tetris.js','js/features.js','js/pickers.js','js/picker-jev.js','js/sap-pricing.js','js/picker-rpt1.js','js/picker-rpt1-v2.js','js/rpt1-experience.js','js/picker-llm.js','js/arena.js'])
   new Function('window','fetch','location','performance', fs.readFileSync(ROOT+f,'utf8'))(
     win, win.fetch, win.location, win.performance);
 const { Tetris:T, Features:F, Pickers:P, Arena:A } = win;
 { const d = await (await fetch('http://localhost:8787/api/models')).json();
   for (const m of d.models) win.ModelPrices[m.id] = { prompt:m.promptPrice||0, completion:m.completionPrice||0 }; }
 
-/* Roster: "heuristic", "jev", "rpt1", or "<model-id>" for any OpenRouter chat model.
+/* Roster: any registered picker id ("heuristic", "jev-2ply", "rpt1", "rpt1-v2",
+   "rpt1-v2-2k", ...), or "<model-id>" for any OpenRouter chat model.
    Pass them as arguments, e.g.
      node shootout.mjs heuristic jev google/gemini-2.5-flash-lite
    Keep the roster small: several players firing at once can trip a provider's
@@ -34,8 +35,7 @@ const { Tetris:T, Features:F, Pickers:P, Arena:A } = win;
 const ROSTER = (process.argv.slice(2).length
   ? process.argv.slice(2)
   : ['heuristic', 'jev', 'anthropic/claude-haiku-5.5', 'google/gemini-2.5-flash-lite']
-).map((spec) => (['heuristic', 'jev', 'jev-lean', 'jev-2ply', 'rpt1'].includes(spec)
-  ? [spec, null] : ['llm', spec]));
+).map((spec) => (spec !== 'llm' && P.registry[spec] ? [spec, null] : ['llm', spec]));
 
 async function runOne(pickerId, model, seed) {
   const player = A.createPlayer({ name: model || pickerId, pickerId, model });

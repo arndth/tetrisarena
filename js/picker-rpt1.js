@@ -92,6 +92,45 @@
 
   function seeded() { return seedContext([], 8, 6); }
 
+  function requestBody(rows, target) {
+    return {
+      prediction_config: {
+        target_columns: [
+          { name: target || TARGET, task_type: 'regression', prediction_placeholder: PREDICT }
+        ]
+      },
+      index_column: 'row_id',
+      /* context rows must precede the prediction rows */
+      rows: rows
+    };
+  }
+
+  function countCells(rows) {
+    const cellCount = { input: 0, predicted: 0 };
+    for (const row of rows) {
+      for (const key of Object.keys(row)) {
+        if (row[key] === PREDICT) cellCount.predicted++;
+        else cellCount.input++;
+      }
+    }
+    return cellCount;
+  }
+
+  async function predict(body) {
+    const res = await fetch(P.proxyUrl('/api/rpt1'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error('rpt1 proxy ' + res.status + ': ' + text.slice(0, 200));
+    try { return JSON.parse(text); } catch (e) { throw new Error('rpt1: non-JSON reply'); }
+  }
+
+  /* Shared with picker-rpt1-v2.js, which builds a different table but talks
+     to the same endpoint. */
+  global.Rpt1 = { requestBody: requestBody, countCells: countCells, predict: predict };
+
   P.register({
     id: 'rpt1',
     label: 'SAP-RPT-1 (tabular placement scorer)',
@@ -123,35 +162,9 @@
         return row;
       });
 
-      const body = {
-        prediction_config: {
-          target_columns: [
-            { name: TARGET, task_type: 'regression', prediction_placeholder: PREDICT }
-          ]
-        },
-        index_column: 'row_id',
-        /* context rows must precede the prediction rows */
-        rows: context.concat(queryRows)
-      };
-
-      const cellCount = { input: 0, predicted: 0 };
-      for (const row of body.rows) {
-        for (const key of Object.keys(row)) {
-          if (row[key] === PREDICT) cellCount.predicted++;
-          else cellCount.input++;
-        }
-      }
-
-      const res = await fetch(P.proxyUrl('/api/rpt1'), {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error('rpt1 proxy ' + res.status + ': ' + text.slice(0, 200));
-
-      let data;
-      try { data = JSON.parse(text); } catch (e) { throw new Error('rpt1: non-JSON reply'); }
+      const body = requestBody(context.concat(queryRows));
+      const cellCount = countCells(body.rows);
+      const data = await predict(body);
       const preds = data.predictions || [];
       let best = null, bestVal = -Infinity, bestIdx = -1, bestCI = null;
       preds.forEach((row, i) => {

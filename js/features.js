@@ -153,6 +153,24 @@
     return out;
   }
 
+  /* El-Tetris "eroded piece cells": rows this placement completes times the
+     cells of the placed piece that vanish with them. Rewards clearing with the
+     piece itself rather than just stacking next to a full row. */
+  function erodedCells(grid, p) {
+    const cols = grid[0].length;
+    const placed = T.cellsOf(p.type, p.rot).map((c) => ({ x: p.x + c.x, y: p.y + c.y }));
+    let lines = 0, cells = 0;
+    for (const y of new Set(placed.map((c) => c.y))) {
+      const mine = placed.filter((c) => c.y === y);
+      let full = true;
+      for (let x = 0; x < cols && full; x++) {
+        if (!grid[y][x] && !mine.some((c) => c.x === x)) full = false;
+      }
+      if (full) { lines++; cells += mine.length; }
+    }
+    return lines * cells;
+  }
+
   /* El-Tetris weights (Islam El-Ashi, 2011) -- the shared baseline. */
   const WEIGHTS = {
     landingHeight: -4.500158825082766,
@@ -182,6 +200,7 @@
     columnHeights: columnHeights,
     boardFeatures: boardFeatures,
     enumeratePlacements: enumeratePlacements,
+    erodedCells: erodedCells,
     scorePlacement: scorePlacement,
     asciiBoard: asciiBoard,
     WEIGHTS: WEIGHTS

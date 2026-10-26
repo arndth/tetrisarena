@@ -101,7 +101,7 @@ per player and press **Run**.
 | --- | --- | --- | --- |
 | **Heuristic** (`heuristic`) | El-Tetris linear scoring ([Islam El-Ashi, 2011](https://imake.ninja/el-tetris-an-improvement-on-pierre-dellacheries-algorithm/)), six weighted board features | nothing (runs locally) | best-scoring placement |
 | **Jev** (`jev`, `jev-lean`, `jev-2ply`) | [TypeSafe AI](https://typesafe.ai) "System One" decision model | a `state` object + a typed `choice` question whose options are the candidates | `{choice, confidence}`; it cannot answer illegally |
-| **SAP-RPT-1** (`rpt1`) | [SAP's relational pretrained transformer](https://www.sap.com/products/artificial-intelligence/sap-rpt.html), a tabular foundation model | a **table**: one row per candidate, numeric feature columns, the target column marked `[PREDICT]`, plus labelled context rows | a predicted score per row, with a confidence interval and feature importances |
+| **SAP-RPT-1** (`rpt1`, `rpt1-v2`, `rpt1-v2-2k`) | [SAP's relational pretrained transformer](https://www.sap.com/products/artificial-intelligence/sap-rpt.html), a tabular foundation model | a **table**: one row per candidate, numeric feature columns, the target column marked `[PREDICT]`, plus labelled context rows | a predicted score per row, with a confidence interval and feature importances |
 | **Any chat LLM** (`llm`) | any of the ~470 models on [OpenRouter](https://openrouter.ai) | the ASCII board + a numbered list of legal placements | `{"option": "option_N", "why": "…"}`, parsed tolerantly |
 | **You** | keyboard | — | — |
 
@@ -383,9 +383,89 @@ it reports **RPT-1.6 95%, GEV-26B 93%, Jev 88%**. In this arena, Jev with the
 improved `jev-2ply` briefing reaches **100%** of the heuristic (see below). The
 gap between Jev and RPT-1 depends heavily on what each model is given.
 
-Both setups share the same ceiling: **RPT-1 imitates its teacher**. To let it
-beat the heuristic, replace `labelFor()` with an outcome-based label, e.g. lines
-cleared and holes created over the next 10 pieces.
+Both setups share the same ceiling: **RPT-1 imitates its teacher**. Whether an
+outcome-based label could lift that ceiling is covered next.
+
+### Feeding RPT-1 better data: `rpt1-v2`
+
+`js/picker-rpt1-v2.js` fixes the three weaknesses above and follows the SAP
+post's recipe:
+
+- **All legal placements** are sent as `[PREDICT]` rows, up to 34, not a
+  heuristic top 10.
+- **A fixed experience store** of 11,426 rows (`js/rpt1-experience.js`) comes
+  from 24 self-play games with 0, 15 or 40% random moves. Six placements per
+  position are kept, spread from best to worst. Rebuild it with
+  `npm run build-rpt1-experience`.
+- **Context sampled per move**, 70% from positions within ±3 rows of the
+  current stack height.
+- **Two new columns:** `next_piece` and `eroded_cells`. That makes 17 columns.
+
+Two variants differ only in how many context rows each request carries:
+
+| | `rpt1-v2` | `rpt1-v2-2k` |
+| --- | --- | --- |
+| Context rows per move | 64 (as in the SAP post) | 2,000 (the playground maximum is 2,048; larger tables are randomly downsampled) |
+| Cells per request | ~1,600 | ~35,000 |
+| Prediction error on held-out store rows (MAE, score units) | 3.2 | **0.2** |
+
+**Head-to-head.** 50 pieces × seeds 1, 2, 3, run with
+`PIECES=50 SEEDS=1,2,3 node shootout.mjs heuristic jev-2ply rpt1 rpt1-v2 rpt1-v2-2k`
+on 2026-10-26. The values are means per seed. "Agreed" means the player chose
+the same placement as the heuristic.
+
+| Player | Candidates it chooses from | Lines | Holes | Stack | Agreed with heuristic | On SAP BTP per 1,000 pieces |
+| --- | --- | --- | --- | --- | --- | --- |
+| `rpt1-v2-2k` | all (9–34) | 18.7 | 0.0 | 2.7 | **97%** | ≈ €14.0 |
+| `rpt1` | top 8 by heuristic | 18.7 | 0.0 | 2.7 | 95% | ≈ €0.77 |
+| heuristic | all | 18.3 | 0.0 | 2.7 | 100% | free |
+| `jev-2ply` | top 8 by heuristic | 18.3 | 0.3 | 3.7 | 73% | $0.04 (billed) |
+| `rpt1-v2` | all (9–34) | 18.0 | 0.0 | 4.3 | 90% | ≈ €1.46 |
+
+All players had 0% fallbacks. The free playground allows one RPT call every
+3.5 s, and three RPT players shared that limit here, so their wall-clock time
+per move (~19 s) says nothing about the model.
+
+**What this shows**
+
+- **Lines no longer separate the players.** 50 pieces allow at most 20 lines,
+  and everyone lands at 18–19.
+- **The old `rpt1` looked better than it was.** Its 95% agreement comes from
+  choosing among the heuristic's own top 8. `rpt1-v2` faces all 9–34
+  placements and still matches the heuristic 90% of the time with 64 rows.
+  That is in line with the SAP post (91% / 81%).
+- **More data helps clearly.** With 2,000 rows, RPT-1 matches the heuristic on
+  97% of moves from the full candidate set. It has effectively learned the
+  formula from examples alone.
+- **It is not worth the price here.** On BTP, 2,000 context rows cost about 18×
+  as much per piece as the old setup. The formula itself is free and runs in
+  under 1 ms.
+
+**Why there are no outcome labels.** Before spending API calls, the labels were
+tested offline with a ridge regression on the same 64 context rows standing in
+for RPT-1. That stand-in reproduces the heuristic exactly when given heuristic
+labels.
+
+Labels based on what happened over the next few pieces failed in every form
+that was tried:
+- **Lines and holes over 8 pieces.** The model learned that height does not
+  matter, built towers and topped out.
+- **The same, normalised per position, plus a board-value term.** It still
+  topped out.
+- **Even a player that sees the true future topped out.** Scoring every
+  placement directly by the 8-piece rollout lost too. With a 4-piece horizon
+  (the 3 visible preview pieces plus one), the rollout only drew level with
+  the heuristic.
+
+Two reasons:
+- **Beyond the preview, the label mostly measures luck.** Which pieces come
+  next decides more than the move itself, and 64 examples cannot average that
+  out.
+- **The heuristic leaves almost nothing to win.** Over 200 pieces it clears
+  77–79 lines, out of a physical maximum of 80 (200 pieces × 4 cells ÷ 10).
+
+In this game, "beat the heuristic" is not a realistic goal for any model.
+"Match it from examples alone" is, and `rpt1-v2-2k` does.
 
 ---
 
@@ -504,6 +584,9 @@ js/features.js          placement enumeration + board features + El-Tetris weigh
 js/pickers.js           backend registry + heuristic
 js/picker-jev.js        Jev: three prompt variants
 js/picker-rpt1.js       SAP-RPT-1: table builder, context memory, prediction parsing
+js/picker-rpt1-v2.js    SAP-RPT-1 v2: all candidates, context sampled from the experience store
+js/rpt1-experience.js   generated experience store (11,426 labelled rows)
+tools/build-rpt1-experience.mjs  regenerates js/rpt1-experience.js
 js/picker-llm.js        any OpenRouter chat model
 js/sap-pricing.js       RPT-1 cell rate card + capacity-unit maths
 js/arena.js             players, run loop, standings, cost ledger

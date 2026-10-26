@@ -8,7 +8,8 @@
     "start": "node server.mjs",
     "bench": "node bench.mjs 3 1500",
     "shootout": "node shootout.mjs",
-    "sap-cost": "node sap-cost.mjs"
+    "sap-cost": "node sap-cost.mjs",
+    "build-rpt1-experience": "node tools/build-rpt1-experience.mjs"
   },
   "engines": { "node": ">=18" },
   "keywords": ["tetris", "sap-rpt-1", "jev", "llm", "benchmark", "openrouter", "tabular-ai"]
