@@ -5,7 +5,7 @@ candidate moves, live cost tracking.**
 
 [![50-piece race: SAP-RPT-1, Jev, Gemini 2.5 Flash Lite and the El-Tetris heuristic on the same seed](media/race-poster.png)](media/tetris-arena-50-pieces.mp4)
 
-▶ [Watch the 40-second race](media/tetris-arena-50-pieces.mp4) (6× timelapse, 50 identical pieces per player)
+▶ [Watch the 30-second race](media/tetris-arena-50-pieces.mp4) (9× timelapse, 50 identical pieces per player, every player chooses from all legal moves)
 
 Lately there have been plenty of demos of AI models playing Tetris. This project
 asks what is actually going on behind them: how good the play is, how fast it
@@ -122,28 +122,29 @@ Run alone, it survives more than 1,500 pieces (`node bench.mjs 3 1500`: about
 
 ### The 50-piece race (the video)
 
-Seed 12345, 50 identical pieces per player, 10 candidates per decision, 0
-fallbacks for every player. Recorded on 2026-10-26.
+Seed 12345, 50 identical pieces per player. Every player chose from **all
+legal placements**, listed in neutral board order. SAP-RPT-1 ran as
+`rpt1-v2-2k` (2,000 context rows per move). Recorded on 2026-10-26.
 
-> **Pre-selected run.** The models chose only among the heuristic's top 10,
-> listed best-first. See [the fair rerun](#the-fair-rerun-no-pre-selection-no-hints-in-the-order)
-> for results without that help.
-
-| Player | Lines after 50 pieces | Time per move | Cost for 50 pieces | Per 1,000 pieces |
+| Player | Lines | Holes | Time per move | Cost for 50 pieces |
 | --- | --- | --- | --- | --- |
-| **Jev** (`jev-2ply`) | **19** | 222 ms | $0.0024 | **$0.05** |
-| **Heuristic** | **19** | < 1 ms | free | **free** |
-| SAP-RPT-1 (`sap-rpt-1.6`) | 18 | 3,438 ms¹ | free in playground (≈ €0.043 on BTP²) | ≈ €0.85² |
-| Gemini 2.5 Flash Lite | 18 | 481 ms | $0.0039 | $0.08 |
+| **Heuristic** | **19** | **0** | < 1 ms | free |
+| SAP-RPT-1 (`rpt1-v2-2k`) | 18 | **0** | 3,417 ms¹ | free in playground (≈ €0.70 on BTP²) |
+| Gemini 2.5 Flash Lite | 17³ | 2 | 908 ms | $0.0058 |
+| Jev (`jev-2ply`) | 15 | 3 | **243 ms** | $0.0042 |
 
-¹ Almost entirely the free playground's mandatory request spacing (one call
-every 3.5 s). The inference itself takes 0.6–1.2 s.
+¹ Mostly the free playground's mandatory request spacing (one call every
+3.5 s).
 ² Theoretical. Calculated from SAP's per-cell rate card at €1 per capacity
 unit, see [cost comparison](#cost-comparison).
+³ 12 of Gemini's 50 moves hit a provider rate limit (HTTP 429), and the
+heuristic played those. Its own result is worse than shown.
 
-**How to read it.** On play quality this is a four-way tie: 18 or 19 lines is
-within noise for 50 pieces. The players differ by orders of magnitude on speed
-and cost instead. The heuristic matches the best model instantly and for free.
+**How to read it.** This is one game. Over three seeds Jev averages 18.7
+lines, the same as RPT-1 (see [the fair rerun](#the-fair-rerun-no-pre-selection-no-hints-in-the-order)).
+What does hold across runs: RPT-1 with enough examples keeps a clean board,
+Jev is by far the fastest and cheapest model, and the heuristic matches or beats
+all of them instantly and for free.
 
 ### The full field (20 pieces)
 
